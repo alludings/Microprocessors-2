@@ -21,8 +21,7 @@ const int button_pin = 2;
 const int sound_sensor = A2;
 
 // RTC instance 
-RTC_DS3231 rtc;
-DateTime now;
+RTC_DS1307 rtc;
 
 // Motor driver L293D
 const int enA = 9;
@@ -35,6 +34,10 @@ LiquidCrystal lcd(12, 11, 5, 4, 3, 6);
 // Globals
 volatile String dirLabel = "C";     
 volatile String speedLabel = "0";   
+
+volatile int hours = 0;
+volatile int minutes = 0;
+volatile int seconds = 0;
 
 void setup() {
     Serial.begin(9600);
@@ -55,11 +58,17 @@ void setup() {
         while (1);
     }
 
-    if (rtc.lostPower()) {
+    if (!rtc.isrunning()) {
         lcd.clear();
-        lcd.print("Setting Time...");
+        lcd.print("Set RTC...");
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     }
+
+    // Read time ONCE as required
+    DateTime t = rtc.now();
+    hours = t.hour();
+    minutes = t.minute();
+    seconds = t.second();
 
     // Timer1 interrupt at 1 Hz
     cli();
@@ -95,7 +104,20 @@ void loop() {
 
 // Timer interrupt: update LCD every second 
 ISR(TIMER1_COMPA_vect) {
-    now = rtc.now();  // Get actual HH:MM:SS
+    
+    // Update software time
+    seconds++;
+    if (seconds >= 60) {
+        seconds = 0;
+        minutes++;
+    }
+    if (minutes >= 60) {
+        minutes = 0;
+        hours++;
+    }
+    if (hours >= 24) {
+        hours = 0;
+    } 
 
     lcd.clear();
 
