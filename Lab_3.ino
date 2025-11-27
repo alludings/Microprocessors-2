@@ -11,8 +11,8 @@ https://lastminuteengineers.com/l293d-dc-motor-arduino  -tutorial/
 */
 
 #include <LiquidCrystal.h>
-#include <DS3231.h>
 #include <Wire.h>
+#include <RTClib.h>
 
 // Button
 const int button_pin = 2;
@@ -20,11 +20,11 @@ const int button_pin = 2;
 // Sound sensor
 const int sound_sensor = A2;
 
-// RTC (I2C)
-DS3231 rtc(A4, A5);
-volatile DateTime now;
+// RTC instance 
+RTC_DS3231 rtc;
+DateTime now;
 
-// Motor driver (L293D)
+// Motor driver L293D
 const int enA = 9;
 const int in1 = 8;
 const int in2 = 7;
@@ -33,8 +33,8 @@ const int in2 = 7;
 LiquidCrystal lcd(12, 11, 5, 4, 3, 6);
 
 // Globals
-volatile String dirLabel = "C";     // “C” or “CC”
-volatile String speedLabel = "0";   // “Full”, “3/4”, “1/2”, or “0”
+volatile String dirLabel = "C";     
+volatile String speedLabel = "0";   
 
 void setup() {
     Serial.begin(9600);
@@ -44,19 +44,31 @@ void setup() {
     pinMode(in2, OUTPUT);
     pinMode(enA, OUTPUT);
 
-    now = rtc.now();
-
     lcd.begin(16, 2);
     lcd.print("Initializing...");
+    delay(1000);
+
+    // RTC setup
+    if (!rtc.begin()) {
+        lcd.clear();
+        lcd.print("RTC ERROR");
+        while (1);
+    }
+
+    if (rtc.lostPower()) {
+        lcd.clear();
+        lcd.print("Setting Time...");
+        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
 
     // Timer1 interrupt at 1 Hz
     cli();
     TCCR1A = 0;
     TCCR1B = 0;
     TCNT1 = 0;
-    OCR1A = 15624;                       // 1 Hz
+    OCR1A = 15624;
     TCCR1B |= (1 << WGM12);
-    TCCR1B |= (1 << CS12) | (1 << CS10); // 1024 prescaler
+    TCCR1B |= (1 << CS12) | (1 << CS10);
     TIMSK1 |= (1 << OCIE1A);
     sei();
 }
@@ -96,11 +108,16 @@ ISR(TIMER1_COMPA_vect) {
 
     // Row 2: Display RTC clock HH:MM:SS
     lcd.setCursor(0, 1);
-    lcd.print(now.hour() < 10 ? "0" : ""); lcd.print(now.hour());
+    if (now.hour() < 10) lcd.print("0");
+    lcd.print(now.hour());
     lcd.print(":");
-    lcd.print(now.minute() < 10 ? "0" : ""); lcd.print(now.minute());
+
+    if (now.minute() < 10) lcd.print("0");
+    lcd.print(now.minute());
     lcd.print(":");
-    lcd.print(now.second() < 10 ? "0" : ""); lcd.print(now.second());
+
+    if (now.second() < 10) lcd.print("0");
+    lcd.print(now.second());
 }
 
 // Convert sound into speed levels 
